@@ -6,7 +6,8 @@
 
 ## 功能特性
 
-- 🎵 **语音播放收藏**：「播放本地收藏歌曲」随机播放飞牛音乐收藏，每次口令都重新打乱顺序
+- 🎵 **语音播放收藏**：「播放本地收藏歌曲」「播放收藏」「播放本地」等口令随机播放飞牛音乐收藏，每次口令都重新打乱顺序
+- 🎤 **语音点歌**：「播放晴天」「播放周杰伦的晴天」——先搜收藏，没有则经 [fnmusic-ext](https://gitee.com/superxyline/fnos_music_ext) 增强搜索（本地曲库 + 在线源）；在线歌自动**下载**进本地音乐库（**不污染收藏**），点播的歌放完没人管会自动接播收藏随机歌单
 - 🔄 **自动同步**：飞牛音乐收藏增减约 5 分钟自动同步到歌单（也可语音说「刷新列表」立即同步）
 - 🗣️ **完整语音控制**：下一首 / 上一首 / 暂停 / 随机播放 / 全部循环 / 单曲循环 / 顺序播放
 - 📱 **三步安装向导**：小米账号登录（支持密码 / 米家 App 扫码）→ 勾选小爱音箱 → 自动扫描连接飞牛音乐
@@ -39,7 +40,7 @@ fnmusic-xiaomusic/
 
 ### 方式一：App 中心手动安装（推荐）
 
-1. 在 [Releases](../../releases) 页面下载 `xiaomusic-fnmusic-0.1.fpk`
+1. 在 [Releases](../../releases) 页面下载 `xiaomusic-fnmusic-0.2.fpk`
 2. 飞牛桌面 → **App 中心** → 右上角「手动安装」→ 选择下载的 FPK
 3. 安装向导只需填两项：**NAS 局域网 IP**（如 192.168.31.26）、**应用端口**（默认 58091）
 4. 等待安装完成（约 1-2 分钟，主要是加载内置镜像），应用状态变为「运行中」
@@ -47,12 +48,12 @@ fnmusic-xiaomusic/
 ### 方式二：SSH 命令行安装
 
 ```bash
-# 将 FPK 上传到 NAS 后（如 /tmp/xiaomusic-fnmusic-0.1.fpk），SSH 到 NAS 执行：
+# 将 FPK 上传到 NAS 后（如 /tmp/xiaomusic-fnmusic-0.2.fpk），SSH 到 NAS 执行：
 cat > /tmp/xm-install.env <<'EOF'
 nas_ip=192.168.31.26      # 改成你的 NAS 局域网 IP
 bridge_port=58091         # 应用端口（被占用就换）
 EOF
-sudo appcenter-cli install-fpk /tmp/xiaomusic-fnmusic-0.1.fpk -e /tmp/xm-install.env -v 3
+sudo appcenter-cli install-fpk /tmp/xiaomusic-fnmusic-0.2.fpk -e /tmp/xm-install.env -v 3
 ```
 
 > `-v 3` 是存储卷索引，请按你 NAS 的实际卷调整（App 中心图形安装则无需关心）。
@@ -73,12 +74,14 @@ sudo appcenter-cli install-fpk /tmp/xiaomusic-fnmusic-0.1.fpk -e /tmp/xm-install
 
 | 口令 | 效果 |
 | --- | --- |
-| **播放本地收藏歌曲** | 随机播放飞牛音乐收藏（每次都重新打乱顺序） |
-| **播放列表本地收藏** | 同上（显式歌单名，识别更稳） |
+| **播放收藏 / 播放本地 / 播放本地收藏歌曲** | 随机播放飞牛音乐收藏（每次都重新打乱顺序） |
+| **播放晴天 / 播放周杰伦的晴天** | 点歌：搜收藏 → 没有 → 在线搜并自动下载（不进收藏）→ 播放 |
 | 下一首 / 上一首 | 切换歌曲（顺序不打乱） |
 | 停止播放 / 关机 | 停止 |
 | 随机播放 / 全部循环 / 单曲循环 / 顺序播放 | 切换播放模式 |
 | 刷新列表 | 重新加载歌单（改了收藏不想等同步时用） |
+
+> 点播的歌自然放完且没有后续指令时，自动接播收藏随机歌单；期间任何新指令（停止 / 下一首 / 新点歌）都不会被打断式接管。
 
 ### Web 界面
 
@@ -104,7 +107,7 @@ python scripts/nas_ssh_put.py xiaomusic-fnmusic-base.fpk /home/<user>/
 # NAS 上执行：bash nas_v2_rebuild_all.sh（解包 → docker build → save → 注入 → 合成）
 
 # 3. 下载最终 FPK
-python scripts/nas_ssh_get.py /home/<user>/xiaomusic-fnmusic-0.1.fpk ./
+python scripts/nas_ssh_get.py /home/<user>/xiaomusic-fnmusic-0.2.fpk ./
 ```
 
 ## 已知限制
