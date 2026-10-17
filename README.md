@@ -17,17 +17,17 @@
 
 ```
 fnmusic-xiaomusic/
-├── fpk-v2-src/                   # FPK 打包源码（v2 单容器版）
+├── fpk-v2-src/                   # FPK 打包源码
 │   ├── manifest / config / cmd / wizard   # 生命周期脚本与安装向导
 │   └── app/
 │       ├── docker/fnmusic-app/   # 应用源码（桥接服务 + 向导 UI）
 │       └── docker/docker-compose.yaml
 ├── bridge-v2/                    # 桥接服务源码（开发主目录，与 FPK 内同步）
+├── docker-compose.yml            # 手动 Docker 部署（非飞牛 NAS / 不走 App 中心时用）
 │   ├── app.py                    # 主应用：三步向导 + 飞牛音乐桥接 + xiaomusic 集成
 │   ├── fnmusic_client.py         # 飞牛音乐 API 客户端（登录/收藏/音频流/authx 签名）
 │   ├── static/wizard.html        # 三步向导 + 状态页（单文件，无外部依赖）
 │   └── Dockerfile / requirements.txt
-├── fpk-src/ + bridge/            # v1 双容器版（历史保留）
 ├── scripts/                      # 打包与部署脚本
 └── docs/部署指南.md               # 详细部署文档
 ```

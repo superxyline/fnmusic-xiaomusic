@@ -19,8 +19,7 @@ ENV TZ=Asia/Shanghai \
 WORKDIR /app
 
 # 预置静态 ffmpeg（构建上下文由 rebuild 脚本放入）
-COPY ffmpeg-static/ffmpeg /usr/local/bin/ffmpeg
-RUN chmod +x /usr/local/bin/ffmpeg
+COPY --chmod=0755 ffmpeg-static/ffmpeg /usr/local/bin/ffmpeg
 
 COPY requirements.txt .
 # 国内 pip 源优先，官方源作后备（部分新包国内镜像未同步，如 xiaomusic 本身）

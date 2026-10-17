@@ -1,0 +1,5 @@
+ffmpeg-static
+*.fpk
+testdata
+__pycache__
+*.log.txt

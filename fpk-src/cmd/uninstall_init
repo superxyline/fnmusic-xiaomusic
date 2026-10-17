@@ -1,3 +1,0 @@
-#!/bin/bash
-# 卸载前检查（暂无；数据保留策略见 uninstall_callback）
-exit 0
