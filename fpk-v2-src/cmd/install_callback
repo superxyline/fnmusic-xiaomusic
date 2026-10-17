@@ -39,5 +39,26 @@ fi
 echo "[install] 用最终配置重建容器..."
 recreate_containers
 
+# 开机自启兜底：关机时 appcenter 可能显式 stop 容器，unless-stopped 策略下
+# 被显式 stop 的容器重启不会拉起——用 systemd 服务在开机后确保容器 running
+echo "[install] 部署开机自启守护..."
+cat > /etc/systemd/system/fnmusic-autostart.service << 'UNIT'
+[Unit]
+Description=fnmusic-xiaomusic container autostart guard
+After=docker.service network-online.target
+Wants=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/bin/sh -c "for i in 1 2 3 4 5 6 7 8 9 10; do docker info >/dev/null 2>&1 && exit 0; sleep 5; done; exit 1"
+ExecStart=/bin/sh -c "if docker ps -a --format '{{.Names}}' | grep -qx fnmusic-xiaomusic; then docker start fnmusic-xiaomusic; elif [ -f /vol3/@appcenter/xiaomusic-fnmusic/docker/docker-compose.yaml ]; then cd /vol3/@appcenter/xiaomusic-fnmusic/docker && docker compose -p xiaomusic-fnmusic up -d; fi"
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload 2>/dev/null || true
+systemctl enable fnmusic-autostart.service 2>/dev/null || true
+
 echo "[install] 完成"
 exit 0
