@@ -232,14 +232,23 @@ async def push_playlist(playlist: list):
     async with httpx.AsyncClient(base_url=SELF_URL, timeout=15) as cli:
         r = await cli.post("/xm/api/system/modifiysetting", json={
             "music_list_json": json.dumps(playlist, ensure_ascii=False),
-            "keywords_playlist": f"播放列表,播放歌单,{CFG['playlist_keyword']}",
+            # 口令变体全量推送（每次同步自愈，防止被默认值/旧值覆盖）
+            "keywords_playlist": ",".join([
+                "播放列表", "播放歌单",
+                "播放本地收藏歌曲", "播放本地收藏", "播放本地歌曲", "播放本地音乐",
+                "放几首本地歌", "放几首本地歌曲", "放首本地歌", "放首本地歌曲",
+                "随便放几首歌", "随便放首歌", "来几首本地歌", "来几首本地音乐",
+            ]),
+            # playlocal 是"播放本地下载歌曲"，本方案无下载目录——
+            # 改为不常用词，避免其默认值「播放本地歌曲,播放本地音乐」抢占口令
+            "keywords_playlocal": "播放下载歌曲",
             "music_list_url": f"{SELF_URL}/playlist.json",
         })
         r.raise_for_status()
         await cli.post("/xm/api/music/refreshlist")
     STATE.last_push_at = time.time()
     STATE.push_ok = True
-    log.info("已推送歌单并通知 xiaomusic 刷新")
+    log.info("已推送歌单与口令变体并通知 xiaomusic 刷新")
 
 
 async def sync_loop():
