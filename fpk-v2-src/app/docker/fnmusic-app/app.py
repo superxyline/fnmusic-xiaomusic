@@ -234,7 +234,7 @@ async def push_playlist(playlist: list):
             "music_list_json": json.dumps(playlist, ensure_ascii=False),
             # 口令变体全量推送（每次同步自愈，防止被默认值/旧值覆盖）
             "keywords_playlist": ",".join([
-                "播放列表", "播放歌单",
+                "播放列表", "播放歌单", "播放收藏", "播放本地",
                 "播放本地收藏歌曲", "播放本地收藏", "播放本地歌曲", "播放本地音乐",
                 "放几首本地歌", "放几首本地歌曲", "放首本地歌", "放首本地歌曲",
                 "随便放几首歌", "随便放首歌", "来几首本地歌", "来几首本地音乐",
@@ -349,8 +349,12 @@ def _match_favorite(name: str):
     return None
 
 
-async def _search_and_favorite(name: str) -> bool:
-    """调 fnmusicext 增强搜索（本地库+在线源），把第一首歌加入收藏"""
+async def _resolve_song(name: str):
+    """解析点歌请求，返回 (mode, arg)：
+    - ("ready", 精确歌名)：收藏/本地曲库命中（必要时以收藏为播放手段）
+    - ("downloaded", 歌名)：在线歌已下载到本地音乐目录（不进收藏）
+    - (None, None)：找不到
+    """
     global STATE
     if STATE.fn is None:
         STATE.fn = new_fn_client()
@@ -360,10 +364,23 @@ async def _search_and_favorite(name: str) -> bool:
         STATE.token = fn.token
     except Exception as e:
         log.warning("[play] 飞牛登录失败: %s", e)
-        return False
+        return None, None
+
+    def _is_online(t):
+        return str(t.get("guid") or "").startswith("online:")
+
+    def _full_name(t):
+        artists = " / ".join(
+            (a.get("name") or "").strip() for a in (t.get("artists") or []) if a.get("name")
+        )
+        title = (t.get("title") or "").strip()
+        return f"{artists} - {title}" if artists else title
+
     keywords = [name]
     if "的" in name:
         keywords.append(name.replace("的", " "))  # 「周杰伦的晴天」→「周杰伦 晴天」
+
+    online_track = None
     for kw in keywords:
         try:
             tracks = await fn.search_track(kw)
@@ -372,7 +389,7 @@ async def _search_and_favorite(name: str) -> bool:
             continue
         if not tracks:
             continue
-        # 按标题与查询的相似度挑最佳匹配（搜索源返回顺序不一定最相关）
+        # 按标题相似度排序（搜索源返回顺序不一定最相关）
         import difflib
         tracks = sorted(
             tracks,
@@ -381,19 +398,126 @@ async def _search_and_favorite(name: str) -> bool:
             ).ratio(),
             reverse=True,
         )
-        guid = tracks[0].get("guid") or ""
-        title = tracks[0].get("title") or name
-        if not guid:
-            continue
-        try:
-            await fn.add_favorite(guid)
-            log.info("[play] 已把「%s」加入飞牛收藏（%s...）", title, guid[:12])
-        except Exception as e:
-            # 已收藏/在线虚拟曲目收藏失败——歌若在库里也能播，视为成功继续
-            log.warning("[play] 收藏「%s」返回异常（可能已收藏）: %s", title, e)
+        # 优先本地曲库结果（guid 非 online: 前缀）：收藏它使其可被点播
+        for t in tracks:
+            if not _is_online(t):
+                guid = t.get("guid") or ""
+                if not guid:
+                    continue
+                try:
+                    await fn.add_favorite(guid)
+                    log.info("[play] 本地曲库命中「%s」，已收藏以便点播", _full_name(t))
+                except Exception as e:
+                    log.warning("[play] 收藏返回异常（可能已收藏）: %s", e)
+                try:
+                    await do_sync(force=True)
+                except Exception as e:
+                    log.warning("[play] 同步失败: %s", e)
+                exact = _match_favorite(name)
+                if exact:
+                    return "ready", exact
+                # 收藏后仍匹配不到（罕见），用完整名硬试
+                return "ready", _full_name(t)
+        # 本地没有，记住相似度最高的在线结果，继续下一变体（也可能变体有本地结果）
+        if online_track is None:
+            for t in tracks:
+                if _is_online(t):
+                    online_track = t
+                    break
+
+    # 本地曲库没有 → 在线歌：经 proxy /track/stream 下载到本地音乐目录（不进收藏）
+    if online_track is not None:
+        ok = await _download_online_track(online_track)
+        if ok:
+            return "downloaded", _full_name(online_track)
+    log.info("[play] 搜索「%s」无可用结果", name)
+    return None, None
+
+
+def _safe_filename(name: str) -> str:
+    import re as _re
+    return _re.sub(r'[\\/:*?"<>|]', "_", name).strip() or "unknown"
+
+
+async def _download_online_track(track: dict) -> bool:
+    """把在线歌曲经 proxy 流下载转码为 mp3，存入 xiaomusic 本地音乐目录"""
+    guid = track.get("guid") or ""
+    title = (track.get("title") or "").strip()
+    artists = " / ".join(
+        (a.get("name") or "").strip() for a in (track.get("artists") or []) if a.get("name")
+    )
+    out_path = MUSIC_DIR / (_safe_filename(f"{artists} - {title}") + ".mp3")
+    if out_path.exists() and out_path.stat().st_size > 100000:
+        log.info("[play] 「%s」已在本地音乐库", out_path.name)
         return True
-    log.info("[play] 搜索「%s」无结果", name)
-    return False
+    log.info("[play] 在线歌曲「%s」开始下载...", title)
+    try:
+        fn = STATE.fn
+        resp = await fn.open_stream(guid)
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-y", "-loglevel", "error", "-i", "pipe:0",
+            "-c:a", "libmp3lame", "-b:a", "192k", str(out_path),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        try:
+            async with asyncio.timeout(180):
+                async for chunk in resp.aiter_bytes(65536):
+                    proc.stdin.write(chunk)
+                    await proc.stdin.drain()
+        finally:
+            await resp.aclose()
+            try:
+                await proc.stdin.drain()
+                proc.stdin.close()
+            except Exception:
+                pass
+            await proc.wait()
+        if proc.returncode != 0 or not out_path.exists() or out_path.stat().st_size < 100000:
+            log.warning("[play] 下载「%s」失败（rc=%s）", title, proc.returncode)
+            out_path.unlink(missing_ok=True)
+            return False
+        log.info("[play] 下载完成：%s（%.1fMB），刷新本地列表", out_path.name,
+                 out_path.stat().st_size / 1048576)
+    except Exception as e:
+        log.warning("[play] 下载「%s」异常: %s", title, e)
+        out_path.unlink(missing_ok=True)
+        return False
+    # 通知 xiaomusic 重新扫描本地音乐目录
+    try:
+        async with httpx.AsyncClient(base_url=SELF_URL, timeout=30) as cli:
+            await cli.post("/xm/api/music/refreshlist")
+    except Exception as e:
+        log.warning("[play] refreshlist 失败: %s", e)
+    return True
+
+
+def _spawn_auto_playlist_guard(did: str, cmd_snapshot: str):
+    """点播的歌自然播完且无新指令时，自动接播收藏随机歌单"""
+    async def guard():
+        try:
+            dev = XM.device_manager.devices.get(did)
+            if dev is None:
+                return
+            started = False
+            for _ in range(240):  # 最多监控 20 分钟
+                await asyncio.sleep(5)
+                if XM.command_handler.last_cmd != cmd_snapshot:
+                    return  # 用户发出了新指令，不干预
+                if dev.is_playing:
+                    started = True
+                elif started:
+                    break  # 自然播完
+            else:
+                return
+            if XM.command_handler.last_cmd != cmd_snapshot:
+                return
+            log.info("[play] 点播结束且无新指令，接播收藏随机歌单")
+            await XM.play_music_list(did=did, arg1=CFG.get("playlist_name", "本地收藏"))
+        except Exception as e:
+            log.warning("[play] 自动接歌单异常: %s", e)
+    asyncio.create_task(guard())
 
 
 def patch_play_search():
@@ -410,25 +534,24 @@ def patch_play_search():
     async def patched_play(did="", arg1="", **kwargs):
         name = (arg1 or "").strip()
         if name:
+            cmd_snapshot = XM.command_handler.last_cmd
             exact = _match_favorite(name)
             if exact is None:
-                log.info("[play] 收藏中没有「%s」，搜索飞牛并收藏", name)
-                if await _search_and_favorite(name):
+                log.info("[play] 收藏中没有「%s」，解析本地曲库/在线下载", name)
+                mode, exact = await _resolve_song(name)
+                if mode is None:
                     try:
-                        await do_sync(force=True)
+                        dev = XM.device_manager.devices.get(did)
+                        if dev is not None:
+                            await dev.do_tts(f"没有找到{name}")
                     except Exception as e:
-                        log.warning("[play] 同步新收藏失败: %s", e)
-                    exact = _match_favorite(name)
-            if exact is None:
-                try:
-                    dev = XM.device_manager.devices.get(did)
-                    if dev is not None:
-                        await dev.do_tts(f"没有找到{name}")
-                except Exception as e:
-                    log.warning("[play] TTS 失败: %s", e)
-                return
-            if exact != name:
-                arg1 = exact  # 用「歌手 - 标题」精确歌名，确保 xiaomusic 命中
+                        log.warning("[play] TTS 失败: %s", e)
+                    return
+                if exact != name:
+                    arg1 = exact  # 用精确歌名确保 xiaomusic 命中
+            elif exact != name:
+                arg1 = exact
+            _spawn_auto_playlist_guard(did, cmd_snapshot)
         return await original_play(did=did, arg1=arg1, **kwargs)
 
     XM.play = patched_play
