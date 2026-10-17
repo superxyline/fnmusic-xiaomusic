@@ -1,0 +1,11 @@
+# FPK 打包产物（作为 Release 附件发布，不进仓库）
+*.fpk
+# 预置镜像（构建时由 NAS 脚本准备，体积过大）
+fpk-src/app/images/
+fpk-v2-src/app/images/
+# 本地测试与缓存
+bridge-v2/testdata/
+__pycache__/
+*.pyc
+.DS_Store
+bridge-v2/xiaomusic.log.txt

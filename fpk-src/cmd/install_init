@@ -1,0 +1,74 @@
+#!/bin/bash
+# 安装前回调：端口检查 + 同名容器检查 + 预加载镜像
+#
+# 为什么要在 init 里加载镜像：
+# appcenter 的执行顺序是 install_init -> 拉取/校验 compose 镜像 -> install_callback。
+# 重装（uninstall 后 install）时 appcenter 已把 compose 引用的本地镜像清掉，
+# 若不提前 load，compose 引用 fnmusic-xiaomusic:local 会报 10266 安装失败。
+# 因此从安装包中提取 images/fnmusic-images.tar 在此阶段提前 docker load。
+
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH
+
+LOG=/tmp/xm-preload.log
+{
+echo "=== install_init $(date) ==="
+echo "TRIM_TEMP_TPKFILE=${TRIM_TEMP_TPKFILE:-未设置}"
+ls -la "${TRIM_TEMP_TPKFILE}" 2>&1
+} >> "$LOG" 2>&1
+
+# 端口占用检查（若向导端口已收集；兼容裸字段名与 wizard_ 前缀）
+check_port() {
+    local port="$1" name="$2"
+    [ -n "$port" ] || return 0
+    if ss -tln 2>/dev/null | grep -q ":${port} "; then
+        echo "端口 ${port}（${name}）已被其他服务占用，请更换端口或停止占用该端口的服务后重试。" > "${TRIM_TEMP_LOGFILE}"
+        exit 1
+    fi
+}
+check_port "${xiaomusic_port:-${wizard_xiaomusic_port:-}}" "小爱管理端口"
+check_port "${bridge_port:-${wizard_bridge_port:-}}" "收藏同步端口"
+
+# 同名容器冲突检查（防止与本应用无关的旧部署打架）
+for name in xiaomusic fnmusic-bridge; do
+    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$name"; then
+        echo "检测到已存在的容器 ${name}（可能是旧版独立部署）。请先在飞牛 Docker 中移除该容器，再安装本应用。" > "${TRIM_TEMP_LOGFILE}"
+        exit 1
+    fi
+done
+
+# 预加载预置镜像（从安装包提取，失败不阻断安装，install_callback 还会再试一次）
+# 注意：init 阶段 appcenter 已把安装包解压到 TRIM_TEMP_TPKFILE 目录（内含 app.tgz）
+TPK="${TRIM_TEMP_TPKFILE}"
+IMG_DIR=""
+CLEANUP=""
+if [ -d "$TPK" ] && [ -f "$TPK/app.tgz" ]; then
+    IMG_DIR="$TPK"
+elif [ -f "$TPK" ]; then
+    # 兼容个别版本：TPK 是单个 tar.gz 文件
+    TMP=/tmp/xm-preload.$$
+    mkdir -p "$TMP"
+    if tar xzf "$TPK" -C "$TMP" app.tgz 2>>"$LOG"; then
+        IMG_DIR="$TMP"
+        CLEANUP="$TMP"
+    fi
+fi
+if [ -n "$IMG_DIR" ]; then
+    mkdir -p /tmp/xm-images
+    if tar xzf "$IMG_DIR/app.tgz" -C /tmp/xm-images images/fnmusic-images.tar 2>>"$LOG"; then
+        if [ -f /tmp/xm-images/images/fnmusic-images.tar ]; then
+            SIZE=$(du -h /tmp/xm-images/images/fnmusic-images.tar | cut -f1)
+            echo "[preload] 加载预置镜像（${SIZE}）..." >> "$LOG"
+            if docker load -i /tmp/xm-images/images/fnmusic-images.tar >> "$LOG" 2>&1; then
+                echo "[preload] 镜像加载成功" >> "$LOG"
+            else
+                echo "[preload] 镜像加载失败（install_callback 将重试）" >> "$LOG"
+            fi
+        fi
+    else
+        echo "[preload] app.tgz 内无 images/fnmusic-images.tar" >> "$LOG"
+    fi
+    rm -rf /tmp/xm-images
+fi
+[ -n "$CLEANUP" ] && rm -rf "$CLEANUP"
+
+exit 0

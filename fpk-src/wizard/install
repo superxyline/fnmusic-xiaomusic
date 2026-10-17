@@ -1,0 +1,54 @@
+[
+    {
+        "stepTitle": "安装前须知",
+        "items": [
+            {
+                "type": "tips",
+                "helpText": "<p>本应用让小爱音箱播放 NAS 上<b>飞牛音乐</b>的收藏列表，包含两个服务：xiaomusic（小爱音箱控制，端口 58090）和飞牛音乐桥接服务（端口 58091）。</p><p>安装后还需两步：① 打开桌面的「小爱音箱」图标，绑定小米账号并勾选小爱音箱；② 打开「收藏同步」图标确认显示已登录。</p><p>需要提前准备：飞牛音乐的登录账号密码（音乐库独立账号或 NAS 账号均可）。</p><p>提示：请勿将与摄像头绑定的小米账号用于本应用。</p>"
+            }
+        ]
+    },
+    {
+        "stepTitle": "基本配置",
+        "items": [
+            {
+                "type": "text",
+                "field": "nas_ip",
+                "label": "NAS 局域网 IP",
+                "initValue": "192.168.31.26",
+                "rules": [{ "required": true, "message": "请填写 NAS 的局域网 IP" }]
+            },
+            {
+                "type": "text",
+                "field": "fnmusic_port",
+                "label": "飞牛音乐端口",
+                "initValue": "5666",
+                "rules": [{ "required": true, "message": "请填写飞牛音乐端口" }]
+            },
+            {
+                "type": "text",
+                "field": "fnmusic_username",
+                "label": "飞牛音乐账号",
+                "rules": [{ "required": true, "message": "请填写飞牛音乐登录账号" }]
+            },
+            {
+                "type": "password",
+                "field": "fnmusic_password",
+                "label": "飞牛音乐密码",
+                "rules": [{ "required": true, "message": "请填写飞牛音乐登录密码" }]
+            },
+            {
+                "type": "text",
+                "field": "xiaomusic_port",
+                "label": "小爱管理端口",
+                "initValue": "58090"
+            },
+            {
+                "type": "text",
+                "field": "bridge_port",
+                "label": "收藏同步端口",
+                "initValue": "58091"
+            }
+        ]
+    }
+]

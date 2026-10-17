@@ -1,0 +1,40 @@
+#!/bin/bash
+# 配置向导回调：修改 NAS IP / 端口，保存后重建容器
+
+. "$(dirname "$0")/_lib.sh"
+
+# 读取现有值（向导字段名即环境变量名；兼容 wizard_ 前缀）
+NAS_IP="$(env_get NAS_IP)";   [ -n "${nas_ip:-}" ] && NAS_IP="${nas_ip}";   [ -n "${wizard_nas_ip:-}" ] && NAS_IP="${wizard_nas_ip}"
+BR_PORT="$(env_get BRIDGE_PORT)"; [ -n "${bridge_port:-}" ] && BR_PORT="${bridge_port}"; [ -n "${wizard_bridge_port:-}" ] && BR_PORT="${wizard_bridge_port}"
+
+# 兜底默认值
+NAS_IP="${NAS_IP:-192.168.31.26}"
+BR_PORT="${BR_PORT:-58091}"
+
+echo "[config] 更新配置..."
+env_write_full "$NAS_IP" "$BR_PORT"
+sync_ui_ports "$BR_PORT"
+harden_compose_env || { echo "compose 配置生成失败" > "${TRIM_TEMP_LOGFILE}"; exit 1; }
+
+# NAS_IP 变更同步到桥接配置（xiaomusic 的 hostname 用它）
+SHARES="$(detect_shares_root)/${TRIM_APPNAME}"
+CFG_JSON="${SHARES}/data/bridge/config.json"
+if [ -f "$CFG_JSON" ] && command -v python3 >/dev/null 2>&1; then
+    python3 - "$CFG_JSON" "$NAS_IP" <<'PYEOF' 2>/dev/null || true
+import json, sys
+path, nas_ip = sys.argv[1], sys.argv[2]
+try:
+    cfg = json.load(open(path, encoding="utf-8"))
+    cfg["nas_ip"] = nas_ip
+    json.dump(cfg, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    print("[config] 桥接配置 NAS_IP 已更新")
+except Exception as e:
+    print(f"[config] 桥接配置更新跳过: {e}")
+PYEOF
+fi
+
+echo "[config] 重建容器使新配置生效..."
+recreate_containers
+
+echo "[config] 完成"
+exit 0

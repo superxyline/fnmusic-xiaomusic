@@ -1,0 +1,32 @@
+#!/bin/bash
+# 卸载前回调：停容器、清理含密码的 .env、备份数据目录
+# 备份内容：v1 的 conf（小米账号绑定）+ v2 的 data（含 setting.json/auth.json/歌单配置），重装自动恢复
+
+. "$(dirname "$0")/_lib.sh"
+
+echo "[uninstall] 停止并移除容器..."
+COMPOSE_DIR=""
+for d in "/vol3/@appcenter/${TRIM_APPNAME}/docker" "${TRIM_APPDEST}/docker"; do
+    if [ -f "$d/docker-compose.yaml" ]; then COMPOSE_DIR="$d"; break; fi
+done
+if [ -n "$COMPOSE_DIR" ]; then
+    cd "$COMPOSE_DIR" && docker compose -p "${TRIM_APPNAME}" down --remove-orphans || true
+else
+    cd "${TRIM_APPDEST}/docker" 2>/dev/null && docker compose down --remove-orphans || true
+fi
+# 双保险：直接按名删除容器
+docker rm -f fnmusic-xiaomusic xiaomusic fnmusic-bridge 2>/dev/null || true
+
+rm -f "${TRIM_APPDEST}/docker/.env"
+
+# 备份数据目录（appcenter 卸载会删除 /var/apps/<app> 整个目录）
+SHARES_DIR="$(detect_shares_root)/${TRIM_APPNAME}"
+BACKUP_DIR="/var/apps/${TRIM_APPNAME}.shares-backup"
+if [ -d "$SHARES_DIR" ]; then
+    rm -rf "$BACKUP_DIR"
+    cp -a "$SHARES_DIR" "$BACKUP_DIR" 2>/dev/null || true
+    echo "[uninstall] 已备份数据目录 -> $BACKUP_DIR"
+fi
+
+echo "[uninstall] 完成"
+exit 0

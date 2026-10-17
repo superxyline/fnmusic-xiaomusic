@@ -1,0 +1,13 @@
+{
+    ".url": {
+        "xiaomusic-fnmusic.main": {
+            "title": "小爱音箱",
+            "icon": "images/icon-{0}.png",
+            "type": "url",
+            "protocol": "http",
+            "port": "58091",
+            "url": "/",
+            "allUsers": true
+        }
+    }
+}

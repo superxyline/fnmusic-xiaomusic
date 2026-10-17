@@ -1,0 +1,43 @@
+#!/bin/bash
+# 安装后回调：写配置 -> 建数据目录 -> v1 数据迁移 -> 加载镜像 -> 重建容器
+
+. "$(dirname "$0")/_lib.sh"
+
+NAS_IP="${nas_ip:-${wizard_nas_ip:-192.168.31.26}}"
+BR_PORT="${bridge_port:-${wizard_bridge_port:-58091}}"
+
+echo "[install] 写入配置..."
+env_write_full "$NAS_IP" "$BR_PORT"
+sync_ui_ports "$BR_PORT"
+harden_compose_env || { echo "compose 配置生成失败" > "${TRIM_TEMP_LOGFILE}"; exit 1; }
+
+echo "[install] 创建数据目录..."
+SHARES="$(detect_shares_root)/${TRIM_APPNAME}"
+mkdir -p "${SHARES}/data/conf" "${SHARES}/data/music" "${SHARES}/data/bridge"
+
+# v1（双容器版）数据迁移：小米账号绑定状态在 conf 目录，迁移到 v2 的 data/conf
+# 候选路径：shares/conf（v1 默认布局）/ @appshare/<app>/conf（fnOS 数据共享区，卸载不删）
+OLD_CONF=""
+for cand in "${SHARES}/conf" \
+            "/vol1/@appshare/${TRIM_APPNAME}/conf" \
+            "/vol2/@appshare/${TRIM_APPNAME}/conf" \
+            "/vol3/@appshare/${TRIM_APPNAME}/conf"; do
+    if [ -f "$cand/setting.json" ]; then OLD_CONF="$cand"; break; fi
+done
+if [ -n "$OLD_CONF" ] && [ ! -f "${SHARES}/data/conf/setting.json" ]; then
+    cp -a "$OLD_CONF/." "${SHARES}/data/conf/" 2>/dev/null || true
+    echo "[install] 已迁移小米账号绑定状态（来源 $OLD_CONF）"
+fi
+
+echo "[install] 加载预置镜像..."
+if ! load_local_images; then
+    echo "预置镜像加载失败，请检查磁盘空间后重试。" > "${TRIM_TEMP_LOGFILE}"
+    exit 1
+fi
+
+# appcenter 在回调前已用未替换的 compose 起过容器，用最终配置重建
+echo "[install] 用最终配置重建容器..."
+recreate_containers
+
+echo "[install] 完成"
+exit 0

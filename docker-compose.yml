@@ -1,0 +1,49 @@
+# fnmusic-xiaomusic：小爱音箱播放飞牛音乐收藏
+#
+# 部署步骤见 docs/部署指南.md
+# 1. 修改下面 FNMUSIC_USERNAME / FNMUSIC_PASSWORD 为你的飞牛音乐账号密码
+# 2. 如果 NAS 的局域网 IP 不是 192.168.31.26，同步修改 FNMUSIC_BASE_URL 和 xiaomusic 的 XIAOMUSIC_HOSTNAME
+# 3. docker compose up -d
+# 4. 浏览器打开 http://NAS_IP:58090 绑定小米账号并勾选小爱音箱
+# 5. 对小爱说"播放本地收藏歌曲"
+
+services:
+  xiaomusic:
+    image: docker.hanxi.cc/hanxi/xiaomusic   # 国内镜像；海外网络改为 hanxi/xiaomusic
+    container_name: xiaomusic
+    restart: unless-stopped
+    ports:
+      - "58090:8090"                          # Web 管理界面
+    volumes:
+      - ./data/xiaomusic/music:/app/music     # 本地音乐目录，保持为空（歌曲全部走飞牛收藏）
+      - ./data/xiaomusic/conf:/app/conf       # xiaomusic 配置
+    environment:
+      - TZ=Asia/Shanghai
+      - XIAOMUSIC_PUBLIC_PORT=58090           # 小爱访问 xiaomusic 代理的端口
+      - XIAOMUSIC_HOSTNAME=http://192.168.31.26   # NAS 局域网 IP（按实际修改）
+
+  fnmusic-bridge:
+    build: ./bridge
+    container_name: fnmusic-bridge
+    restart: unless-stopped
+    ports:
+      - "58091:58091"                         # 桥接服务状态页 / 流代理
+    volumes:
+      - ./data/bridge:/data                   # device_id 持久化
+    environment:
+      - TZ=Asia/Shanghai
+      # ===== 必填：飞牛音乐 =====
+      - FNMUSIC_BASE_URL=http://192.168.31.26:5666
+      - FNMUSIC_USERNAME=请填写飞牛音乐账号
+      - FNMUSIC_PASSWORD=请填写飞牛音乐密码
+      # ===== xiaomusic（compose 网络内用服务名直达）=====
+      - XIAOMUSIC_BASE_URL=http://xiaomusic:8090
+      # ===== 歌单里嵌给 xiaomusic 的流地址 =====
+      # 默认同 compose 网络服务名；若 xiaomusic 不在本 compose 网络，改为 http://NAS_IP:58091
+      - BRIDGE_URL=http://fnmusic-bridge:58091
+      - BRIDGE_PORT=58091
+      # ===== 可选 =====
+      - PLAYLIST_NAME=本地收藏                # 歌单名（口令"播放列表本地收藏"）
+      - PLAYLIST_KEYWORD=播放本地收藏歌曲      # 自定义语音口令
+      - SYNC_INTERVAL=300                     # 收藏同步间隔（秒）
+      - TRANSCODE_MODE=auto                   # auto=按音箱型号自动判断是否转码 MP3

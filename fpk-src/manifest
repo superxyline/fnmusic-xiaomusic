@@ -1,0 +1,16 @@
+appname=xiaomusic-fnmusic
+version=1.0.0
+display_name=小爱音箱·飞牛音乐
+desc=<p>让家里的小爱音箱播放 NAS 上<b>飞牛音乐</b>的收藏列表。对小爱说「播放本地收藏歌曲」，即以随机顺序播放收藏，支持上一首/下一首/循环/随机等语音控制。收藏增减自动同步（约5分钟）。</p><p>由 xiaomusic（小爱音箱控制）+ 飞牛音乐桥接服务组成，数据保存在 NAS 本地，不经过第三方服务器。</p><h3>使用步骤</h3><ol><li>安装后打开桌面的「小爱音箱」图标，在设置页绑定小米账号并勾选你的小爱音箱</li><li>打开「收藏同步」图标确认状态页显示「已登录」且收藏数正常</li><li>对小爱音箱说「播放本地收藏歌曲」</li></ol><p>口令：播放本地收藏歌曲 / 播放列表本地收藏 / 随机播放 / 全部循环 / 下一首 / 停止播放</p>
+maintainer=superxyline
+maintainer_url=https://github.com/hanxi/xiaomusic
+distributor=superxyline
+source=thirdparty
+platform=x86
+os_min_version=1.2.0
+service_port=58090
+checkport=false
+ctl_stop=true
+desktop_uidir=ui
+desktop_applaunchname=xiaomusic-fnmusic.main
+changelog=v1.0.0 首个版本：小爱音箱播放飞牛音乐收藏（随机播放、自动同步、无损自动转码）

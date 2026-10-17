@@ -1,0 +1,30 @@
+[
+    {
+        "stepTitle": "安装前须知",
+        "items": [
+            {
+                "type": "tips",
+                "helpText": "<p>本应用让小爱音箱播放 NAS 上<b>飞牛音乐</b>的收藏列表。安装只需填 NAS 的 IP，安装后打开应用会进入三步向导：</p><ol><li>登录小米账号（支持账号密码 / 米家 App 扫码）</li><li>勾选你的小爱音箱</li><li>自动扫描并连接飞牛音乐（填写飞牛音乐账号密码）</li></ol><p>提示：请勿将与摄像头绑定的小米账号用于本应用。</p>"
+            }
+        ]
+    },
+    {
+        "stepTitle": "基本配置",
+        "items": [
+            {
+                "type": "text",
+                "field": "nas_ip",
+                "label": "NAS 局域网 IP",
+                "initValue": "192.168.31.26",
+                "rules": [{ "required": true, "message": "请填写 NAS 的局域网 IP" }]
+            },
+            {
+                "type": "text",
+                "field": "bridge_port",
+                "label": "应用端口",
+                "initValue": "58091",
+                "rules": [{ "required": true, "message": "请填写应用端口" }]
+            }
+        ]
+    }
+]

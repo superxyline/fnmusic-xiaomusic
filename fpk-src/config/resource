@@ -1,0 +1,21 @@
+{
+    "docker-project":
+    {
+        "projects":
+        [
+            {
+                "name": "xiaomusic-fnmusic",
+                "path": "docker"
+            }
+        ]
+    },
+    "data-share":
+    {
+        "shares":
+        [
+            {
+                "name": "xiaomusic-fnmusic"
+            }
+        ]
+    }
+}

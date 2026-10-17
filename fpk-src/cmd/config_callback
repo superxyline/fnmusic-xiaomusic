@@ -1,0 +1,37 @@
+#!/bin/bash
+# 配置向导回调：留空的字段保持不变，其余更新后重启桥接服务
+
+. "$(dirname "$0")/_lib.sh"
+
+# 读取现有值（向导字段名即环境变量名；兼容 wizard_ 前缀写法）
+NAS_IP="$(env_get NAS_IP)";   [ -n "${nas_ip:-}" ] && NAS_IP="${nas_ip}";   [ -n "${wizard_nas_ip:-}" ] && NAS_IP="${wizard_nas_ip}"
+FM_PORT="$(env_get FM_PORT)"; [ -n "${fnmusic_port:-}" ] && FM_PORT="${fnmusic_port}"; [ -n "${wizard_fnmusic_port:-}" ] && FM_PORT="${wizard_fnmusic_port}"
+FM_USER="$(env_get FNMUSIC_USERNAME)"; [ -n "${fnmusic_username:-}" ] && FM_USER="${fnmusic_username}"; [ -n "${wizard_fnmusic_username:-}" ] && FM_USER="${wizard_fnmusic_username}"
+FM_PASS="$(env_get FNMUSIC_PASSWORD)"; [ -n "${fnmusic_password:-}" ] && FM_PASS="${fnmusic_password}"; [ -n "${wizard_fnmusic_password:-}" ] && FM_PASS="${wizard_fnmusic_password}"
+XM_PORT="$(env_get XIAOMUSIC_PORT)"; [ -n "${xiaomusic_port:-}" ] && XM_PORT="${xiaomusic_port}"; [ -n "${wizard_xiaomusic_port:-}" ] && XM_PORT="${wizard_xiaomusic_port}"
+BR_PORT="$(env_get BRIDGE_PORT)"; [ -n "${bridge_port:-}" ] && BR_PORT="${bridge_port}"; [ -n "${wizard_bridge_port:-}" ] && BR_PORT="${wizard_bridge_port}"
+
+# 兜底默认值
+NAS_IP="${NAS_IP:-192.168.31.26}"
+FM_PORT="${FM_PORT:-5666}"
+XM_PORT="${XM_PORT:-58090}"
+BR_PORT="${BR_PORT:-58091}"
+
+echo "[config] 更新配置..."
+env_write_full "$NAS_IP" "$FM_PORT" "$FM_USER" "$FM_PASS" "$XM_PORT" "$BR_PORT"
+sync_ui_ports "$XM_PORT" "$BR_PORT"
+harden_compose_env || { echo "compose 配置生成失败" > "${TRIM_TEMP_LOGFILE}"; exit 1; }
+
+echo "[config] 重建容器使新配置生效..."
+COMPOSE_DIR=""
+for d in "/vol3/@appcenter/${TRIM_APPNAME}/docker" "${TRIM_APPDEST}/docker"; do
+    if [ -f "$d/docker-compose.yaml" ]; then COMPOSE_DIR="$d"; break; fi
+done
+if [ -n "$COMPOSE_DIR" ]; then
+    cd "$COMPOSE_DIR" && docker compose -p "${TRIM_APPNAME}" up -d
+else
+    cd "${TRIM_APPDEST}/docker" && docker compose up -d
+fi
+
+echo "[config] 完成"
+exit 0

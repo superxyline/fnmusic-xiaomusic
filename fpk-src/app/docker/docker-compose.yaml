@@ -1,0 +1,37 @@
+services:
+  xiaomusic:
+    image: fnmusic-xiaomusic:local
+    pull_policy: never
+    container_name: xiaomusic
+    restart: unless-stopped
+    ports:
+      - "${XIAOMUSIC_PORT:-58090}:8090"
+    volumes:
+      - "${SHARES_ROOT:-/var/apps/xiaomusic-fnmusic/shares}/xiaomusic-fnmusic/music:/app/music"
+      - "${SHARES_ROOT:-/var/apps/xiaomusic-fnmusic/shares}/xiaomusic-fnmusic/conf:/app/conf"
+    environment:
+      - TZ=Asia/Shanghai
+      - XIAOMUSIC_PUBLIC_PORT=${XIAOMUSIC_PORT:-58090}
+      - XIAOMUSIC_HOSTNAME=${XIAOMUSIC_HOSTNAME:-http://192.168.31.26}
+
+  fnmusic-bridge:
+    image: fnmusic-bridge:local
+    pull_policy: never
+    container_name: fnmusic-bridge
+    restart: unless-stopped
+    ports:
+      - "${BRIDGE_PORT:-58091}:${BRIDGE_PORT:-58091}"
+    volumes:
+      - "${SHARES_ROOT:-/var/apps/xiaomusic-fnmusic/shares}/xiaomusic-fnmusic/bridge:/data"
+    environment:
+      - TZ=Asia/Shanghai
+      - FNMUSIC_BASE_URL=${FNMUSIC_BASE_URL:-http://192.168.31.26:5666}
+      - FNMUSIC_USERNAME=${FNMUSIC_USERNAME:-}
+      - FNMUSIC_PASSWORD=${FNMUSIC_PASSWORD:-}
+      - XIAOMUSIC_BASE_URL=${XIAOMUSIC_BASE_URL:-http://xiaomusic:8090}
+      - BRIDGE_URL=${BRIDGE_URL:-http://fnmusic-bridge:58091}
+      - BRIDGE_PORT=${BRIDGE_PORT:-58091}
+      - PLAYLIST_NAME=${PLAYLIST_NAME:-本地收藏}
+      - PLAYLIST_KEYWORD=${PLAYLIST_KEYWORD:-播放本地收藏歌曲}
+      - SYNC_INTERVAL=${SYNC_INTERVAL:-300}
+      - TRANSCODE_MODE=${TRANSCODE_MODE:-auto}

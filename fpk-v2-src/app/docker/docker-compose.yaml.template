@@ -1,0 +1,14 @@
+services:
+  fnmusic:
+    image: fnmusic-xiaomusic:local
+    pull_policy: never
+    container_name: fnmusic-xiaomusic
+    restart: unless-stopped
+    ports:
+      - "${BRIDGE_PORT:-58091}:58091"
+    volumes:
+      - "${SHARES_ROOT:-/var/apps/xiaomusic-fnmusic/shares}/xiaomusic-fnmusic/data:/data"
+    environment:
+      - TZ=Asia/Shanghai
+      - NAS_IP=${NAS_IP}
+      - BRIDGE_PORT=${BRIDGE_PORT:-58091}
