@@ -219,6 +219,19 @@ class FnMusicClient:
     async def get_user_info(self):
         return await self.api_call("GET", "/user/me")
 
+    async def search_track(self, keyword: str, page_size: int = 20) -> list[dict]:
+        """搜索歌曲（fnmusicext 接管后该端点会聚合本地库与在线源）"""
+        data = await self.api_call(
+            "GET", "/search/track",
+            {"q": keyword, "page": 1, "size": page_size},
+        )
+        return data.get("list") or []
+
+    async def add_favorite(self, track_guid: str) -> None:
+        """把歌曲加入飞牛音乐收藏"""
+        await self.api_call("POST", "/favorite-track/create",
+                            json_body={"trackGUID": track_guid})
+
     async def get_favorites(self, page_size: int = 500, max_pages: int = 40) -> list[dict]:
         """拉取全部收藏歌曲（分页）"""
         await self.login()

@@ -232,14 +232,27 @@ async def push_playlist(playlist: list):
     async with httpx.AsyncClient(base_url=SELF_URL, timeout=15) as cli:
         r = await cli.post("/xm/api/system/modifiysetting", json={
             "music_list_json": json.dumps(playlist, ensure_ascii=False),
-            "keywords_playlist": f"播放列表,播放歌单,{CFG['playlist_keyword']}",
+            # 口令变体全量推送（每次同步自愈，防止被默认值/旧值覆盖）
+            "keywords_playlist": ",".join([
+                "播放列表", "播放歌单",
+                "播放本地收藏歌曲", "播放本地收藏", "播放本地歌曲", "播放本地音乐",
+                "放几首本地歌", "放几首本地歌曲", "放首本地歌", "放首本地歌曲",
+                "随便放几首歌", "随便放首歌", "来几首本地歌", "来几首本地音乐",
+            ]),
+            # playlocal 是"播放本地下载歌曲"，本方案无下载目录——
+            # 改为不常用词，避免其默认值「播放本地歌曲,播放本地音乐」抢占口令
+            "keywords_playlocal": "播放下载歌曲",
+            # 「播放」放 user_key_word_dict（匹配顺序最后）：
+            # 「播放晴天」这类 歌名口令 落到 play 动作，arg1=歌名；
+            # 且不会抢占「播放本地歌曲」等更长词（它们在顺序里更靠前）
+            "user_key_word_dict": {"播放": "play"},
             "music_list_url": f"{SELF_URL}/playlist.json",
         })
         r.raise_for_status()
         await cli.post("/xm/api/music/refreshlist")
     STATE.last_push_at = time.time()
     STATE.push_ok = True
-    log.info("已推送歌单并通知 xiaomusic 刷新")
+    log.info("已推送歌单与口令变体并通知 xiaomusic 刷新")
 
 
 async def sync_loop():
@@ -271,6 +284,8 @@ async def lifespan(_app):
     asyncio.create_task(XM.run_forever())
     # 3. 播放行为修正：口令重发时重新打乱歌单（见 patch_playlist_behavior）
     patch_playlist_behavior()
+    # 3.5 点歌兜底：搜收藏 → 无则飞牛搜索并收藏 → 播放
+    patch_play_search()
     # 4. 启动桥接同步循环
     asyncio.create_task(sync_loop())
     log.info("fnmusic-xiaomusic v2 启动完成，端口 %s", BRIDGE_PORT)
@@ -314,6 +329,110 @@ def patch_playlist_behavior():
 
     XM.play_music_list = patched_play_music_list
     log.info("[playlist] 播放行为修正已生效")
+
+
+# ---------------- 点歌兜底：搜索飞牛并自动收藏 ----------------
+def _match_favorite(name: str):
+    """在收藏里宽松匹配歌名，命中返回可精确搜索的完整歌名，未命中返回 None"""
+    n = (name or "").replace(" ", "").lower()
+    if not n:
+        return None
+    for t in STATE.favorites:
+        title = (t.get("title") or "").strip()
+        artists = " / ".join(
+            (a.get("name") or "").strip() for a in (t.get("artists") or []) if a.get("name")
+        )
+        title_n = title.replace(" ", "").lower()
+        artist_n = artists.replace(" ", "").lower()
+        if n in title_n or title_n in n or (artist_n and n in artist_n):
+            return f"{artists} - {title}" if artists else title
+    return None
+
+
+async def _search_and_favorite(name: str) -> bool:
+    """调 fnmusicext 增强搜索（本地库+在线源），把第一首歌加入收藏"""
+    global STATE
+    if STATE.fn is None:
+        STATE.fn = new_fn_client()
+    fn = STATE.fn
+    try:
+        await fn.login()
+        STATE.token = fn.token
+    except Exception as e:
+        log.warning("[play] 飞牛登录失败: %s", e)
+        return False
+    keywords = [name]
+    if "的" in name:
+        keywords.append(name.replace("的", " "))  # 「周杰伦的晴天」→「周杰伦 晴天」
+    for kw in keywords:
+        try:
+            tracks = await fn.search_track(kw)
+        except Exception as e:
+            log.warning("[play] 搜索 %r 失败: %s", kw, e)
+            continue
+        if not tracks:
+            continue
+        # 按标题与查询的相似度挑最佳匹配（搜索源返回顺序不一定最相关）
+        import difflib
+        tracks = sorted(
+            tracks,
+            key=lambda t: difflib.SequenceMatcher(
+                None, name.lower(), (t.get("title") or "").lower()
+            ).ratio(),
+            reverse=True,
+        )
+        guid = tracks[0].get("guid") or ""
+        title = tracks[0].get("title") or name
+        if not guid:
+            continue
+        try:
+            await fn.add_favorite(guid)
+            log.info("[play] 已把「%s」加入飞牛收藏（%s...）", title, guid[:12])
+        except Exception as e:
+            # 已收藏/在线虚拟曲目收藏失败——歌若在库里也能播，视为成功继续
+            log.warning("[play] 收藏「%s」返回异常（可能已收藏）: %s", title, e)
+        return True
+    log.info("[play] 搜索「%s」无结果", name)
+    return False
+
+
+def patch_play_search():
+    """点歌口令：先搜收藏，没有则调飞牛搜索并自动收藏，再播放。
+
+    「播放晴天」经 user_key_word_dict 匹配到 play 动作（arg1=晴天）。
+    这里包装 XM.play：先在收藏里宽松匹配（命中则用完整歌名精确播放），
+    未命中调 fnmusicext 搜索 → 加入收藏 → 强制同步进歌单 → 播放。
+    """
+    if XM is None:
+        return
+    original_play = XM.play
+
+    async def patched_play(did="", arg1="", **kwargs):
+        name = (arg1 or "").strip()
+        if name:
+            exact = _match_favorite(name)
+            if exact is None:
+                log.info("[play] 收藏中没有「%s」，搜索飞牛并收藏", name)
+                if await _search_and_favorite(name):
+                    try:
+                        await do_sync(force=True)
+                    except Exception as e:
+                        log.warning("[play] 同步新收藏失败: %s", e)
+                    exact = _match_favorite(name)
+            if exact is None:
+                try:
+                    dev = XM.device_manager.devices.get(did)
+                    if dev is not None:
+                        await dev.do_tts(f"没有找到{name}")
+                except Exception as e:
+                    log.warning("[play] TTS 失败: %s", e)
+                return
+            if exact != name:
+                arg1 = exact  # 用「歌手 - 标题」精确歌名，确保 xiaomusic 命中
+        return await original_play(did=did, arg1=arg1, **kwargs)
+
+    XM.play = patched_play
+    log.info("[play] 点歌搜索兜底已生效")
 
 
 # ---------------- 根级代理（音箱拉流入口） ----------------
