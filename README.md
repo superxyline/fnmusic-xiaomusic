@@ -40,7 +40,7 @@ fnmusic-xiaomusic/
 
 ### 方式一：App 中心手动安装（推荐）
 
-1. 在 [Releases](../../releases) 页面下载 `xiaomusic-fnmusic-0.2.fpk`
+1. 在 [Releases](../../releases) 页面下载 `xiaomusic-fnmusic-0.2.1.fpk`
 2. 飞牛桌面 → **App 中心** → 右上角「手动安装」→ 选择下载的 FPK
 3. 安装向导只需填两项：**NAS 局域网 IP**（如 192.168.31.26）、**应用端口**（默认 58091）
 4. 等待安装完成（约 1-2 分钟，主要是加载内置镜像），应用状态变为「运行中」
@@ -48,12 +48,12 @@ fnmusic-xiaomusic/
 ### 方式二：SSH 命令行安装
 
 ```bash
-# 将 FPK 上传到 NAS 后（如 /tmp/xiaomusic-fnmusic-0.2.fpk），SSH 到 NAS 执行：
+# 将 FPK 上传到 NAS 后（如 /tmp/xiaomusic-fnmusic-0.2.1.fpk），SSH 到 NAS 执行：
 cat > /tmp/xm-install.env <<'EOF'
 nas_ip=192.168.31.26      # 改成你的 NAS 局域网 IP
 bridge_port=58091         # 应用端口（被占用就换）
 EOF
-sudo appcenter-cli install-fpk /tmp/xiaomusic-fnmusic-0.2.fpk -e /tmp/xm-install.env -v 3
+sudo appcenter-cli install-fpk /tmp/xiaomusic-fnmusic-0.2.1.fpk -e /tmp/xm-install.env -v 3
 ```
 
 > `-v 3` 是存储卷索引，请按你 NAS 的实际卷调整（App 中心图形安装则无需关心）。
@@ -107,7 +107,7 @@ python scripts/nas_ssh_put.py xiaomusic-fnmusic-base.fpk /home/<user>/
 # NAS 上执行：bash nas_v2_rebuild_all.sh（解包 → docker build → save → 注入 → 合成）
 
 # 3. 下载最终 FPK
-python scripts/nas_ssh_get.py /home/<user>/xiaomusic-fnmusic-0.2.fpk ./
+python scripts/nas_ssh_get.py /home/<user>/xiaomusic-fnmusic-0.2.1.fpk ./
 ```
 
 ## 已知限制

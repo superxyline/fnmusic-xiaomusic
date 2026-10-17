@@ -95,7 +95,7 @@
   <div class="header">
     <img class="logo" src="data:image/png;base64,__LOGO_B64__" alt="logo">
     <h1>小爱音箱·飞牛音乐</h1>
-    <p>对小爱说「播放本地收藏歌曲」，随机播放你的飞牛音乐收藏</p>
+    <p>对小爱说「播放收藏」随机播放收藏，或「播放晴天」直接点歌</p>
   </div>
   <div class="steps" id="steps"></div>
   <div id="app"><div class="loading"><span class="spinner"></span>加载中…</div></div>
@@ -371,7 +371,7 @@ function renderDone() {
   $('#app').innerHTML = `
     <div class="card">
       <h2>🎉 配置完成</h2>
-      <div class="desc">现在可以对小爱音箱说「播放本地收藏歌曲」了。收藏有增减时约 5 分钟自动同步。</div>
+      <div class="desc">现在可以对小爱音箱说「播放收藏」随机播放你的飞牛音乐收藏，或者说「播放晴天」直接点歌。收藏有增减时约 5 分钟自动同步。</div>
       <div class="status-grid">
         <div class="status-cell"><div class="v" id="d-fav">-</div><div class="k">收藏歌曲</div></div>
         <div class="status-cell"><div class="v" id="d-pl">-</div><div class="k">歌单歌曲（乱序）</div></div>
@@ -379,12 +379,15 @@ function renderDone() {
         <div class="status-cell"><div class="v" id="d-err">-</div><div class="k">最近错误</div></div>
       </div>
       <table class="cmd-table">
-        <tr><td>播放本地收藏歌曲</td><td>随机播放收藏</td></tr>
-        <tr><td>播放列表本地收藏</td><td>同上（识别更稳）</td></tr>
-        <tr><td>下一首 / 上一首 / 停止播放</td><td>播放控制</td></tr>
-        <tr><td>随机播放 / 全部循环 / 单曲循环</td><td>切换播放模式</td></tr>
+        <tr><td>播放收藏 / 播放本地</td><td>随机播放收藏（每次重新打乱）</td></tr>
+        <tr><td>播放本地收藏歌曲 / 播放本地歌曲<br>播放本地音乐</td><td>同上</td></tr>
+        <tr><td>放几首本地歌 / 放首本地歌<br>随便放几首歌 / 来几首本地歌</td><td>同上（口语说法都支持）</td></tr>
+        <tr><td>播放晴天<br>播放周杰伦的晴天</td><td><b>点歌</b>：收藏里有直接播；没有则在线搜索并自动<b>下载</b>到本地音乐库（<b>不进收藏</b>）后播放</td></tr>
+        <tr><td>下一首 / 上一首 / 暂停 / 停止播放</td><td>播放控制</td></tr>
+        <tr><td>随机播放 / 全部循环 / 单曲循环 / 顺序播放</td><td>切换播放模式</td></tr>
         <tr><td>刷新列表</td><td>重新加载歌单</td></tr>
       </table>
+      <div class="desc" style="margin-top:12px">💡 点播的歌自然放完且没有后续指令时，会自动接播收藏随机歌单；期间你说了任何新指令（下一首 / 停止 / 新点歌）则不会接管。</div>
       <div class="btn-row" style="margin-top:18px">
         <button class="btn secondary" style="flex:1" onclick="syncNow()">立即同步</button>
         <button class="btn secondary" style="flex:1" onclick="resetWizard()">重新配置</button>
