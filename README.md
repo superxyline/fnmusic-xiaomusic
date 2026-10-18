@@ -1,8 +1,40 @@
 # 小爱音箱·飞牛音乐（fnmusic-xiaomusic）
 
+> ## ⚠️ 本项目已归档：功能已完整并入 fnmusic-ext，不再更新
+>
+> **本仓库停止维护。** 从 2026-10-18 起，本项目的全部能力已移植进
+> **[fnmusic-ext](https://github.com/superxyline/fnos_music_ext)（`fnos_music_ext` 二次开发版）v3.3.0**，
+> 作为 `fnmusic-sources` 容器内第 5 个进程运行，与本扩展的音源、收藏、在线搜索共用同一套部署。
+>
+> | | 本项目（独立 FPK） | 现在：fnmusic-ext v3.3.0+ |
+> | :--- | :--- | :--- |
+> | 部署形态 | 独立应用 + 独立容器 | 内置为 `fnmusic-sources` 容器第 5 进程 |
+> | 端口 | 58091 | 8775（容器内 8005） |
+> | 配置入口 | 本项目自带向导页 | 管理台左侧菜单「**小爱音箱**」页（`http://<NAS_IP>:8774`） |
+> | 升级 | 单独重装 FPK | 随 fnmusic-ext 一起升级，小米登录态与数据不丢 |
+> | 口令能力 | 全部 | 完全一致（同一套桥接代码） |
+>
+> **新用户**：不要安装本项目。请直接安装
+> [fnmusic-ext v3.3.0 及以上](https://github.com/superxyline/fnos_music_ext/releases)，
+> 在管理台「小爱音箱」页完成三步配置（小米账号 → 勾选音箱 → 飞牛账号）即可。
+>
+> **老用户迁移**：应用中心卸载「小爱音箱·飞牛音乐」→ 安装 fnmusic-ext 3.3.0+ →
+> 管理台开启「小爱音箱」并重新走三步配置（小米账号需重新扫码，飞牛音乐账号需重填；
+> 两个应用的数据目录不同，无法自动搬移）。历史 FPK 仍保留在 [Releases](../../releases)，
+> 可继续使用但**不再获得更新与修复**。
+>
+> **本项目版本缺失的重要修复**（仅在 fnmusic-ext v3.3.0+ 提供）：
+> ① 口令轮询开关（`enable_pull_ask`）默认关闭导致「所有口令失效、音箱只播自己的在线试听」；
+> ② 设备标识被存成 UUID 导致口令只对勾选的第一台音箱生效；
+> ③ 「重新配置」无法重选设备/更换小米账号；
+> ④ 「音箱访问地址」被预填成容器网关导致口令能收到但拉不到音频流。
+> 若你在本项目上遇到以上问题，请迁移到 fnmusic-ext 后再试。
+
 对家里的小爱音箱说 **「播放本地收藏歌曲」**，音箱即随机播放 NAS 上**飞牛音乐（fnOS trim.music）**的收藏列表。收藏有增减时自动同步（默认 5 分钟），全程语音控制，小爱侧零改动。
 
 已封装为飞牛 FPK 应用：**一个安装包、一个端口（58091）、一个三步向导界面**。安装包内置全部镜像，安装过程不需要访问外网。
+
+> 📦 以下文档保留为 **v0.2.1 历史版本** 的说明，仅供仍在用旧 FPK 的用户参考。
 
 ## 功能特性
 
@@ -34,6 +66,10 @@ fnmusic-xiaomusic/
 ```
 
 ## 部署方法（适用于飞牛 NAS）
+
+> 🚫 **本章为 v0.2.1 历史版本的部署方式，新用户请勿使用。**
+> 请改用 [fnmusic-ext v3.3.0+](https://github.com/superxyline/fnos_music_ext/releases)，
+> 其「小爱音箱」功能与本项目等价且包含后续修复（见文首归档说明）。
 
 > 前置要求：飞牛 fnOS（已安装并正常运行**飞牛音乐**）、小爱音箱、小米账号、飞牛音乐账号。
 > 安装包下载地址见 [Releases](../../releases) 页面。
@@ -129,6 +165,15 @@ python scripts/nas_ssh_get.py /home/<user>/xiaomusic-fnmusic-0.2.1.fpk ./
 - [Raduap/FN-Music-Apple](https://github.com/Raduap/FN-Music-Apple) —— 飞牛音乐 Windows 客户端（API 逆向）
 - [qianlipp/fn-music-bridge](https://github.com/qianlipp/fn-music-bridge) —— 「音桥」（authx 签名算法与常量出处）
 - [fmusic](https://blog.zwbcc.cn/archives/f966c451-281c-4d3a-a8dc-838b109e13df) —— authx 逆向详解
+
+## 归档说明
+
+- **归档日期**：2026-10-18（最后版本 v0.2.1）
+- **归档原因**：功能已完整并入 [fnmusic-ext](https://github.com/superxyline/fnos_music_ext) v3.3.0——独立 FPK 需要单独维护一套容器/端口/升级链路，合并后用户只需装一个应用、开一个开关，且能直接复用 fnmusic-ext 的在线搜索、收藏同步与代理取流能力。合并也便于集中修复问题（本轮口令失效等修复只在合并后的版本里）。
+- **代码去向**：桥接主程序 `bridge-v2/app.py` + `fnmusic_client.py` + 向导页，已移植为 fnmusic-ext 仓库的 `xiaomusic-service/` 目录（含适配改动：数据目录 `/data/xiaomusic/`、内外端口分离 8005/8775、飞牛地址改用容器网关探测、ffmpeg 用镜像 apt 版）。
+- **后续反馈**：本仓库不再接受 issue / PR。使用问题请提到 [fnmusic-ext issues](https://github.com/superxyline/fnos_music_ext/issues)。
+- **历史版本**：v0.2.1 及更早的 FPK 仍保留在 [Releases](../../releases)，可继续安装使用，但不再修复问题、不跟进小米/飞牛接口变化。
+
 
 ## License
 
